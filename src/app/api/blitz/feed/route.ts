@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TemplateArchetype } from '@prisma/client';
 import { scrapeUrl } from '../../../../lib/scraper/blitz-scraper';
 import { generateBrandDNA, generateBlitzScript } from '../../../../lib/ai/profiler';
 import { synthesizeVoiceWithTimestamps } from '../../../../lib/audio/voice-engine';
+import { getSession } from '../../../../lib/auth/getSession';
 
 const prisma = new PrismaClient();
 
@@ -11,10 +12,26 @@ export async function GET(request: Request) {
   const cursor = searchParams.get('cursor');
   const limit = 5;
 
+  const { session } = await getSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
+    const workspace = await prisma.workspace.findFirst({
+      where: { userId: session.user.id }
+    });
+
+    if (!workspace) {
+      return NextResponse.json({ error: 'No workspace found. Please onboard first.' }, { status: 400 });
+    }
+
     const queryArgs: any = {
       take: limit,
-      where: { status: 'UNVIEWED' },
+      where: {
+        workspaceId: workspace.id,
+        status: 'UNVIEWED'
+      },
       orderBy: { createdAt: 'desc' }
     };
 
@@ -27,31 +44,22 @@ export async function GET(request: Request) {
 
     // If we fetch cards and there are few left, trigger generation pipeline
     if (cards.length < limit) {
-      // Find a workspace and profile to attach these to (assumes user has onboarded)
-      const workspace = await prisma.workspace.findFirst();
-      let profile = await prisma.brandProfile.findFirst({ where: { workspaceId: workspace?.id } });
+      let profile = await prisma.brandProfile.findFirst({ where: { workspaceId: workspace.id } });
 
-      if (workspace && profile) {
+      if (profile) {
         // Run AI pipeline to synthesize new cards
-
-        // 1. Scrape url (assuming profile has one, fallback if not)
         const scrapedData = await scrapeUrl(profile.websiteUrl || 'https://example.com') || {};
-
-        // 2. Generate Brand DNA (skip if already generated, but generating here for demo context)
         const dna = await generateBrandDNA(profile.websiteUrl, scrapedData);
 
         const newCardsData = [];
         for (let i = 0; i < 5; i++) {
-          // 3. Generate Script
           const script = await generateBlitzScript(dna);
-
-          // 4. Synthesize Voice
           const audio = await synthesizeVoiceWithTimestamps(script.fullScript);
 
           newCardsData.push({
             workspaceId: workspace.id,
             brandProfileId: profile.id,
-            templateType: i % 2 === 0 ? 'WALL_OF_TEXT' : 'HOOK_DEMO',
+            templateType: i % 2 === 0 ? TemplateArchetype.WALL_OF_TEXT : TemplateArchetype.HOOK_DEMO,
             hookText: script.hookText,
             bodyText: script.bodyText,
             ctaText: script.ctaText,
@@ -60,7 +68,7 @@ export async function GET(request: Request) {
             brollVideoUrl: 'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
             subtitlesJson: audio.subtitlesJson,
             durationSeconds: audio.durationSeconds,
-            status: 'UNVIEWED'
+            status: 'UNVIEWED' as any
           });
         }
 
@@ -73,9 +81,8 @@ export async function GET(request: Request) {
 
     const nextCursor = cards.length === limit ? cards[limit - 1].id : null;
 
-    // Also fetch the current queue count to inform the frontend
     const scheduledCount = await prisma.blitzCard.count({
-        where: { status: 'SCHEDULED' }
+        where: { workspaceId: workspace.id, status: 'SCHEDULED' }
     });
 
     return NextResponse.json({

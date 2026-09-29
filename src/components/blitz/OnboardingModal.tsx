@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function OnboardingModal({ onSuccess }: { onSuccess: () => void }) {
   const [url, setUrl] = useState('');
   const [step, setStep] = useState(0); // 0 = input, 1 = scraping, 2 = hooks, 3 = synthesising
+  const [error, setError] = useState('');
   const router = useRouter();
 
   const handleLaunch = async (e: React.FormEvent) => {
@@ -13,13 +14,31 @@ export default function OnboardingModal({ onSuccess }: { onSuccess: () => void }
     if (!url) return;
 
     setStep(1);
-    await new Promise(r => setTimeout(r, 2000));
-    setStep(2);
-    await new Promise(r => setTimeout(r, 2000));
-    setStep(3);
-    await new Promise(r => setTimeout(r, 2000));
 
-    onSuccess();
+    try {
+      const res = await fetch('/api/blitz/onboard', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url })
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to onboard profile');
+      }
+
+      setStep(2);
+      await new Promise(r => setTimeout(r, 1000));
+      setStep(3);
+      await new Promise(r => setTimeout(r, 1000));
+
+      onSuccess();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message);
+      setStep(0);
+    }
   };
 
   if (step === 0) {
@@ -32,6 +51,7 @@ export default function OnboardingModal({ onSuccess }: { onSuccess: () => void }
           </div>
 
           <form onSubmit={handleLaunch} className="space-y-4">
+            {error && <div className="text-red-500 text-sm text-center">{error}</div>}
             <input
               type="url"
               value={url}
