@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   try {
     const queryArgs: any = {
       take: limit,
-      where: { status: 'UNVIEWED' as any },
+      where: { status: 'UNVIEWED' },
       orderBy: { createdAt: 'desc' }
     };
 
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
           newCardsData.push({
             workspaceId: workspace.id,
             brandProfileId: profile.id,
-            templateType: i % 2 === 0 ? 'WALL_OF_TEXT' as any : 'HOOK_DEMO' as any,
+            templateType: i % 2 === 0 ? 'WALL_OF_TEXT' : 'HOOK_DEMO',
             hookText: script.hookText,
             bodyText: script.bodyText,
             ctaText: script.ctaText,
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
             brollVideoUrl: 'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
             subtitlesJson: audio.subtitlesJson,
             durationSeconds: audio.durationSeconds,
-            status: 'UNVIEWED' as any
+            status: 'UNVIEWED'
           });
         }
 
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
 
     // Also fetch the current queue count to inform the frontend
     const scheduledCount = await prisma.blitzCard.count({
-        where: { status: 'SCHEDULED' as any }
+        where: { status: 'SCHEDULED' }
     });
 
     return NextResponse.json({

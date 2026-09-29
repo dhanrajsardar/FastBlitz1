@@ -13,8 +13,8 @@ function LoginForm() {
   const [error, setError] = useState('');
 
   const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key'
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -23,8 +23,6 @@ function LoginForm() {
 
     if (!email || !password) {
         setError('Please enter an email and password.');
-        document.cookie = 'auth-token=true; path=/';
-        router.push(returnUrl);
         return;
     }
 
@@ -35,25 +33,18 @@ function LoginForm() {
 
     if (error) {
       setError(error.message);
-      // Fallback for sandbox
-      document.cookie = 'auth-token=true; path=/';
-      router.push(returnUrl);
     } else {
       router.push(returnUrl);
     }
   };
 
   const handleOAuth = async () => {
-    // Sandbox fallback
-    document.cookie = 'auth-token=true; path=/';
-    router.push(returnUrl);
-
-    // await supabase.auth.signInWithOAuth({
-    //     provider: 'google',
-    //     options: {
-    //         redirectTo: `${window.location.origin}/blitz`
-    //     }
-    // });
+    await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: `${window.location.origin}/blitz`
+        }
+    });
   };
 
   return (

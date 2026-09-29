@@ -8,8 +8,8 @@ export async function middleware(request: NextRequest) {
 
   const cookieStore = await cookies()
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -27,10 +27,7 @@ export async function middleware(request: NextRequest) {
   );
 
   const { data: { session } } = await supabase.auth.getSession();
-
-  // Also check our fallback cookie for sandbox environments where postgres is not configured
-  const hasFallbackAuth = request.cookies.has('auth-token');
-  const isAuthenticated = !!session || hasFallbackAuth;
+  const isAuthenticated = !!session;
 
   if (pathname.startsWith('/blitz') && !isAuthenticated) {
     const url = request.nextUrl.clone();
