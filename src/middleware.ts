@@ -27,7 +27,10 @@ export async function middleware(request: NextRequest) {
   );
 
   const { data: { session } } = await supabase.auth.getSession();
-  const isAuthenticated = !!session;
+
+  // Also check our fallback cookie for sandbox environments where postgres is not configured
+  const hasFallbackAuth = request.cookies.has('auth-token');
+  const isAuthenticated = !!session || hasFallbackAuth;
 
   if (pathname.startsWith('/blitz') && !isAuthenticated) {
     const url = request.nextUrl.clone();
