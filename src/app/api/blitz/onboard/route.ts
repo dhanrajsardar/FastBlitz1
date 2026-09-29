@@ -52,7 +52,9 @@ export async function POST(request: Request) {
         websiteUrl: url,
         companyName: new URL(url).hostname,
         targetAudience: 'General Audience',
-        brandVoice: 'Professional'
+        brandVoice: 'Professional',
+        corePainPoints: JSON.stringify(['Unknown pain points']),
+        keyBenefits: JSON.stringify(['Unknown benefits']),
       }
     });
 

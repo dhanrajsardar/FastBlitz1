@@ -1,34 +1,15 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 generator client {
   provider = "prisma-client-js"
 }
 
-enum TemplateArchetype {
-  WALL_OF_TEXT
-  HOOK_DEMO
-  TIKTOK_SLIDESHOW
-  GREEN_SCREEN_MEME
-  AI_UGC_INFLUENCER
-}
-
-enum CardStatus {
-  UNVIEWED
-  DISMISSED
-  SCHEDULED
-  PUBLISHED
-  FAILED
-}
-
-enum SocialPlatform {
-  TIKTOK
-  INSTAGRAM
-  YOUTUBE
-  LINKEDIN
-}
+// Emulate enums as strings in SQLite (Prisma will map these natively for PostgreSQL but for dev.db sqlite it creates String types, which is fine for sandbox).
+// To enforce type-safety, we will just keep them as Enums but use SQLite provider.
+// Actually Prisma SQLite doesn't support enums natively. We'll use String type with default values.
 
 model User {
   id               String       @id @default(cuid())
@@ -52,64 +33,91 @@ model Workspace {
 }
 
 model BrandProfile {
-  id             String       @id @default(cuid())
-  workspaceId    String
-  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  websiteUrl     String
-  companyName    String
-  tagline        String?
-  targetAudience String
-  brandVoice     String
-  keyBenefits    String[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  blitzCards     BlitzCard[]
+  id              String          @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  websiteUrl      String
+  companyName     String
+  tagline         String?
+  targetAudience  String
+  brandVoice      String
+
+  // Storing arrays as JSON for SQLite compatibility
+  corePainPoints  String
+  keyBenefits     String
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  blitzCards      BlitzCard[]
+}
+
+model MemeTemplate {
+  id                  String          @id @default(cuid())
+  slug                String          @unique
+  creatorHandle       String
+  originalLikes       String
+  originalViews       String
+  originalHookText    String
+  originalVideoUrl    String
+
+  templateType        String          @default("GREEN_SCREEN") // GREEN_SCREEN, SLIDESHOW, WALL_OF_TEXT, HOOK_DEMO
+  foregroundCutoutUrl String
+  defaultBrollUrl     String
+  audioTrackUrl       String
+  hookSyntaxFormula   String
+
+  blitzCards          BlitzCard[]
+  createdAt           DateTime        @default(now())
 }
 
 model BlitzCard {
-  id              String            @id @default(cuid())
-  workspaceId     String
-  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  brandProfileId  String
-  brandProfile    BrandProfile      @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  id                String          @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandProfileId    String
+  brandProfile      BrandProfile    @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  memeTemplateId    String?
+  memeTemplate      MemeTemplate?   @relation(fields: [memeTemplateId], references: [id])
 
-  templateType    TemplateArchetype
-  viralityScore   Int               @default(92)
+  templateType      String          @default("GREEN_SCREEN")
+  positioningAngle  String
+  whyThisContent    String
 
-  // Dynamic Content & Script
-  hookText        String
-  bodyText        String
-  ctaText         String
-  fullScript      String
+  // Parody Script & Overlay Copy
+  hookText          String
+  mentionBusiness   Boolean         @default(true)
+  slidesContent     String?         // Stored as JSON string
 
-  // Media Assets
-  voiceId         String?
-  voiceAudioUrl   String?
-  brollVideoUrl   String
-  avatarVideoUrl  String?
-  subtitlesJson   Json              // Word-level timestamps: [{ word, start, end }]
-  renderedMp4Url  String?
-  durationSeconds Int               @default(15)
+  // Media Composition Manifest
+  foregroundVideoUrl String
+  backgroundAssetUrl String
+  audioTrackUrl      String
+  zoomPercent        Int            @default(102)
+  posX               Float          @default(0)
+  posY               Float          @default(0)
 
-  // Blitz State & Scheduling
-  status          CardStatus        @default(UNVIEWED)
-  swipedAt        DateTime?
-  scheduledFor    DateTime?
-  publishedAt     DateTime?
-  targetPlatforms SocialPlatform[]  @default([TIKTOK, INSTAGRAM, YOUTUBE])
+  // State Machine & Scheduling
+  status            String          @default("UNVIEWED") // UNVIEWED, DISMISSED, LIBRARY_SAVED, SCHEDULED, RENDERING, RENDERED, PUBLISHED, FAILED
+  swipedAt          DateTime?
+  scheduledFor      DateTime?
+  publishedAt       DateTime?
+  targetPlatforms   String          @default("TIKTOK,INSTAGRAM,YOUTUBE") // CSV
+  renderedMp4Url    String?
+  renderError       String?
 
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 }
 
 model SocialAccount {
   id           String         @id @default(cuid())
   workspaceId  String
   workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  platform     SocialPlatform
+  platform     String
   accountName  String
   accessToken  String
   refreshToken String?
   tokenExpiry  DateTime?
+  externalId   String         @default("unknown")
   createdAt    DateTime       @default(now())
 }

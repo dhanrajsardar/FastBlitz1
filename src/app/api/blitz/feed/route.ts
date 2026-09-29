@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient, TemplateArchetype } from '@prisma/client';
-import { scrapeUrl } from '../../../../lib/scraper/blitz-scraper';
-import { generateBrandDNA, generateBlitzScript } from '../../../../lib/ai/profiler';
-import { synthesizeVoiceWithTimestamps } from '../../../../lib/audio/voice-engine';
+import { PrismaClient } from '@prisma/client';
 import { getSession } from '../../../../lib/auth/getSession';
+import { scrapeWebsite } from '../../../../lib/scraper/web-scraper';
+import { extractBrandDNA } from '../../../../lib/ai/brand-profiler';
+import { synthesizeMemeRemix } from '../../../../lib/ai/meme-matcher';
 
 const prisma = new PrismaClient();
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const cursor = searchParams.get('cursor');
-  const limit = 5;
-
   const { session } = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,60 +22,67 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'No workspace found. Please onboard first.' }, { status: 400 });
     }
 
-    const queryArgs: any = {
-      take: limit,
-      where: {
-        workspaceId: workspace.id,
-        status: 'UNVIEWED'
-      },
-      orderBy: { createdAt: 'desc' }
-    };
-
-    if (cursor) {
-      queryArgs.cursor = { id: cursor };
-      queryArgs.skip = 1; // Skip the cursor itself
+    let profile = await prisma.brandProfile.findFirst({ where: { workspaceId: workspace.id } });
+    if (!profile) {
+       return NextResponse.json({ error: 'No brand profile found.' }, { status: 400 });
     }
 
-    let cards = await prisma.blitzCard.findMany(queryArgs);
+    const { searchParams } = new URL(request.url);
+    const limit = 5;
 
-    // If we fetch cards and there are few left, trigger generation pipeline
+    // Fetch unviewed cards
+    let cards = await prisma.blitzCard.findMany({
+      where: { brandProfileId: profile.id, status: 'UNVIEWED' },
+      include: { memeTemplate: true },
+      take: limit,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Generate new cards if running low
     if (cards.length < limit) {
-      let profile = await prisma.brandProfile.findFirst({ where: { workspaceId: workspace.id } });
+      const templates = await prisma.memeTemplate.findMany({ take: 5 });
 
-      if (profile) {
-        // Run AI pipeline to synthesize new cards
-        const scrapedData = await scrapeUrl(profile.websiteUrl || 'https://example.com') || {};
-        const dna = await generateBrandDNA(profile.websiteUrl, scrapedData);
+      if (templates.length > 0) {
+        // We need Brand DNA to generate content
+        const scraped = await scrapeWebsite(profile.websiteUrl || 'https://example.com');
+        const dna = await extractBrandDNA(scraped, profile.websiteUrl);
 
         const newCardsData = [];
-        for (let i = 0; i < 5; i++) {
-          const script = await generateBlitzScript(dna);
-          const audio = await synthesizeVoiceWithTimestamps(script.fullScript);
+        for (const template of templates) {
+          const remix = await synthesizeMemeRemix(dna, template);
 
           newCardsData.push({
             workspaceId: workspace.id,
             brandProfileId: profile.id,
-            templateType: i % 2 === 0 ? TemplateArchetype.WALL_OF_TEXT : TemplateArchetype.HOOK_DEMO,
-            hookText: script.hookText,
-            bodyText: script.bodyText,
-            ctaText: script.ctaText,
-            fullScript: script.fullScript,
-            voiceAudioUrl: audio.audioUrl,
-            brollVideoUrl: 'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
-            subtitlesJson: audio.subtitlesJson,
-            durationSeconds: audio.durationSeconds,
-            status: 'UNVIEWED' as any
+            memeTemplateId: template.id,
+            templateType: template.templateType,
+            positioningAngle: remix.positioningAngle,
+            whyThisContent: remix.whyThisContent,
+            hookText: remix.hookText,
+            mentionBusiness: true,
+
+            foregroundVideoUrl: template.foregroundCutoutUrl,
+            backgroundAssetUrl: template.defaultBrollUrl,
+            audioTrackUrl: template.audioTrackUrl,
+
+            zoomPercent: 102,
+            posX: 0,
+            posY: 0,
+            status: 'UNVIEWED'
           });
         }
 
         await prisma.blitzCard.createMany({ data: newCardsData });
 
-        // Fetch again to include the newly created cards
-        cards = await prisma.blitzCard.findMany(queryArgs);
+        // Re-fetch to include newly generated
+        cards = await prisma.blitzCard.findMany({
+          where: { brandProfileId: profile.id, status: 'UNVIEWED' },
+          include: { memeTemplate: true },
+          take: limit,
+          orderBy: { createdAt: 'desc' }
+        });
       }
     }
-
-    const nextCursor = cards.length === limit ? cards[limit - 1].id : null;
 
     const scheduledCount = await prisma.blitzCard.count({
         where: { workspaceId: workspace.id, status: 'SCHEDULED' }
@@ -87,7 +90,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       cards,
-      nextCursor,
       scheduledCount
     });
 

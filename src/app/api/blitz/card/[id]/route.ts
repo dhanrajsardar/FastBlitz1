@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getSession } from '../../../../../../lib/auth/getSession';
+import { getSession } from '../../../../../lib/auth/getSession';
 
 const prisma = new PrismaClient();
 
-export async function POST(
-  request: Request,
+export async function PATCH(
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { session } = await getSession();
@@ -14,7 +14,8 @@ export async function POST(
   }
 
   const { id } = await params;
-  const updates = await request.json();
+  const body = await req.json();
+  const { zoomPercent, posX, posY, hookText, foregroundVideoUrl, backgroundAssetUrl, mentionBusiness } = body;
 
   try {
     const workspace = await prisma.workspace.findFirst({
@@ -33,19 +34,22 @@ export async function POST(
       return NextResponse.json({ error: 'Card not found or unauthorized' }, { status: 404 });
     }
 
-    const updatedCard = await prisma.blitzCard.update({
+    const updated = await prisma.blitzCard.update({
       where: { id },
       data: {
-        hookText: updates.hookText !== undefined ? updates.hookText : card.hookText,
-        voiceId: updates.voiceId !== undefined ? updates.voiceId : card.voiceId,
-        brollVideoUrl: updates.brollVideoUrl !== undefined ? updates.brollVideoUrl : card.brollVideoUrl
-      }
+        ...(zoomPercent !== undefined && { zoomPercent }),
+        ...(posX !== undefined && { posX }),
+        ...(posY !== undefined && { posY }),
+        ...(hookText !== undefined && { hookText }),
+        ...(foregroundVideoUrl !== undefined && { foregroundVideoUrl }),
+        ...(backgroundAssetUrl !== undefined && { backgroundAssetUrl }),
+        ...(mentionBusiness !== undefined && { mentionBusiness }),
+      },
     });
 
-    return NextResponse.json({ success: true, card: updatedCard });
-
+    return NextResponse.json({ success: true, card: updated });
   } catch (error) {
-    console.error('Failed to update tweak:', error);
+    console.error('Failed to update card:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
