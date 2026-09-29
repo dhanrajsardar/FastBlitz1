@@ -15,7 +15,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await req.json();
-  const { action } = body;
+  const { action, platforms, scheduledTime } = body;
 
   try {
     const workspace = await prisma.workspace.findFirst({
@@ -34,7 +34,7 @@ export async function POST(
       return NextResponse.json({ error: 'Card not found or unauthorized' }, { status: 404 });
     }
 
-    if (action === 'SAVE_TO_LIBRARY' || action === 'DISMISS') { // Fallback map DISMISS as well
+    if (action === 'SAVE_TO_LIBRARY' || action === 'DISMISS') {
       const updatedCard = await prisma.blitzCard.update({
         where: { id },
         data: { status: action === 'SAVE_TO_LIBRARY' ? 'LIBRARY_SAVED' : 'DISMISSED', swipedAt: new Date() },
@@ -43,23 +43,23 @@ export async function POST(
     }
 
     if (action === 'SCHEDULE') {
-      const now = new Date();
-      // Calculate next optimal 4-hour window
-      const scheduledTime = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+      const parsedTime = scheduledTime ? new Date(scheduledTime) : new Date(new Date().getTime() + 4 * 60 * 60 * 1000);
+      const parsedPlatforms = Array.isArray(platforms) ? platforms : ['TIKTOK', 'INSTAGRAM', 'YOUTUBE'];
 
       const updatedCard = await prisma.blitzCard.update({
         where: { id },
         data: {
           status: 'SCHEDULED',
-          scheduledFor: scheduledTime,
+          scheduledFor: parsedTime,
           swipedAt: new Date(),
+          targetPlatforms: parsedPlatforms as any
         },
       });
 
       return NextResponse.json({
         success: true,
         card: updatedCard,
-        scheduledTimeMessage: `Scheduled for ${scheduledTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        scheduledTimeMessage: `Scheduled for ${parsedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
       });
     }
 

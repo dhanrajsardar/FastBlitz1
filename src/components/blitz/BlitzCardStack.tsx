@@ -35,6 +35,7 @@ export const BlitzCardStack: React.FC<{
   onTweak: () => void;
 }> = ({ cards, onSwipeRight, onSwipeLeft, onTweak }) => {
   const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
   const activeCard = cards[activeCardIndex];
 
   // Motion values
@@ -61,12 +62,14 @@ export const BlitzCardStack: React.FC<{
         handleSwipe(-1);
       } else if (e.key === 'ArrowUp' || e.key === 'w') {
         onTweak();
+      } else if (e.key === 'm') {
+        setIsMuted(!isMuted);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeCardIndex, cards, onTweak]);
+  }, [activeCardIndex, cards, onTweak, isMuted]);
 
   const playSwipeSound = (direction: 1 | -1) => {
     if (!audioCtxRef.current) return;
@@ -176,7 +179,7 @@ export const BlitzCardStack: React.FC<{
               </span>
             </div>
 
-            {/* The original video (use a poster or video tag for mock) */}
+            {/* The original video */}
             <video
               src={activeCard.memeTemplate.originalVideoUrl}
               className="w-full h-full object-cover opacity-50"
@@ -224,6 +227,16 @@ export const BlitzCardStack: React.FC<{
                     </div>
                   </div>
 
+                  {/* Mute Button Toggle Overlay */}
+                  <div className="absolute top-12 right-4 z-30">
+                    <button
+                      onClick={() => setIsMuted(!isMuted)}
+                      className="bg-black/40 hover:bg-black/60 backdrop-blur-md p-2 rounded-full text-white border border-white/20 transition pointer-events-auto"
+                    >
+                      {isMuted ? '🔇' : '🔊'}
+                    </button>
+                  </div>
+
                   {/* Remotion Player */}
                   <div className="w-full h-full pointer-events-none">
                     {isTop ? (
@@ -244,6 +257,8 @@ export const BlitzCardStack: React.FC<{
                         style={{ width: '100%', height: '100%' }}
                         autoPlay
                         loop
+                        // Critical audio sync logic: only unmuted if top card AND global unmuted
+                        mute={!isTop || isMuted}
                       />
                     ) : (
                       <div className="w-full h-full bg-black/50" />

@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Player } from '@remotion/player';
+import { HookDemoComposition } from '../../remotion/HookDemoComposition';
+import { WallOfTextComposition } from '../../remotion/WallOfTextComposition';
+import { SlideshowComposition } from '../../remotion/SlideshowComposition';
 
 export const QuickTweakDrawer: React.FC<{
   isOpen: boolean;
@@ -12,16 +16,44 @@ export const QuickTweakDrawer: React.FC<{
   const [hookText, setHookText] = useState('');
   const [mentionBusiness, setMentionBusiness] = useState(true);
   const [zoomPercent, setZoomPercent] = useState(102);
+  const [posX, setPosX] = useState(0);
+  const [posY, setPosY] = useState(0);
+
+  const [foregroundVideoUrl, setForegroundVideoUrl] = useState('');
+  const [backgroundAssetUrl, setBackgroundAssetUrl] = useState('');
+
+  const [showAssetPicker, setShowAssetPicker] = useState<'FOREGROUND' | 'BACKGROUND' | null>(null);
 
   useEffect(() => {
     if (cardData) {
       setHookText(cardData.hookText || '');
       setMentionBusiness(cardData.mentionBusiness ?? true);
       setZoomPercent(cardData.zoomPercent ?? 102);
+      setPosX(cardData.posX ?? 0);
+      setPosY(cardData.posY ?? 0);
+      setForegroundVideoUrl(cardData.foregroundVideoUrl || '');
+      setBackgroundAssetUrl(cardData.backgroundAssetUrl || '');
     }
   }, [cardData]);
 
   if (!isOpen || !cardData) return null;
+
+  const mockForegrounds = [
+    { id: 1, url: 'https://media.aftermark.ai/usefastlane/memes/brittany_cutout_alpha.webm', name: 'Brittany Broski' },
+    { id: 2, url: 'https://media.aftermark.ai/usefastlane/memes/pedro_cutout_alpha.webm', name: 'Pedro Pascal Driving' }
+  ];
+
+  const mockBackgrounds = [
+    { id: 1, url: 'https://media.aftermark.ai/usefastlane/broll/night_bridge_city.mp4', name: 'Night Bridge' },
+    { id: 2, url: 'https://media.aftermark.ai/usefastlane/broll/sunset_highway.mp4', name: 'Sunset Highway' },
+    { id: 3, url: 'https://media.aftermark.ai/usefastlane/broll/cozy_desk_lamp.jpg', name: 'Cozy Desk' }
+  ];
+
+  const getRemotionComponent = (templateType: string) => {
+    if (templateType === 'SLIDESHOW') return SlideshowComposition;
+    if (templateType === 'HOOK_DEMO') return HookDemoComposition;
+    return WallOfTextComposition;
+  }
 
   return (
     <AnimatePresence>
@@ -40,7 +72,37 @@ export const QuickTweakDrawer: React.FC<{
             <button onClick={onClose} className="text-gray-400 hover:text-white font-medium">✕ Close</button>
         </header>
 
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative">
+            {/* Asset Picker Modal */}
+            {showAssetPicker && (
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
+                    <div className="bg-[#1a1c23] border border-white/10 p-6 rounded-2xl w-full max-w-2xl shadow-2xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-white text-xl font-bold">Select {showAssetPicker === 'FOREGROUND' ? 'Meme Cutout' : 'Background'}</h2>
+                            <button onClick={() => setShowAssetPicker(null)} className="text-gray-400 hover:text-white">✕</button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            {(showAssetPicker === 'FOREGROUND' ? mockForegrounds : mockBackgrounds).map(asset => (
+                                <div
+                                   key={asset.id}
+                                   className="bg-white/5 border border-white/10 p-4 rounded-xl cursor-pointer hover:border-[#FF5722] hover:bg-white/10 transition flex items-center space-x-4"
+                                   onClick={() => {
+                                       if (showAssetPicker === 'FOREGROUND') setForegroundVideoUrl(asset.url);
+                                       else setBackgroundAssetUrl(asset.url);
+                                       setShowAssetPicker(null);
+                                   }}
+                                >
+                                    <div className="w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0">
+                                        <video src={asset.url} className="w-full h-full object-cover" muted loop autoPlay playsInline />
+                                    </div>
+                                    <span className="text-white font-medium">{asset.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Left Panel: ASSETS */}
             <div className="w-[350px] border-r border-white/10 bg-[#14151a] p-6 flex flex-col space-y-8 overflow-y-auto">
                 <h3 className="text-white font-bold tracking-widest text-xs uppercase text-gray-500">Assets & Layers</h3>
@@ -55,7 +117,7 @@ export const QuickTweakDrawer: React.FC<{
                                 <div className="text-xs text-emerald-400">Green Screen Active</div>
                             </div>
                         </div>
-                        <button className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded">Swap</button>
+                        <button onClick={() => setShowAssetPicker('FOREGROUND')} className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded">Swap</button>
                     </div>
 
                     {/* Layer 2 */}
@@ -67,7 +129,7 @@ export const QuickTweakDrawer: React.FC<{
                                 <div className="text-xs text-blue-400">B-Roll Loop</div>
                             </div>
                         </div>
-                        <button className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded">Swap</button>
+                        <button onClick={() => setShowAssetPicker('BACKGROUND')} className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded">Swap</button>
                     </div>
                 </div>
 
@@ -97,34 +159,53 @@ export const QuickTweakDrawer: React.FC<{
                         className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#FF5722] h-24"
                     />
                 </div>
-
-                <div className="space-y-3">
-                    <h3 className="text-white font-bold tracking-widest text-xs uppercase text-gray-500">Prompt AI Override</h3>
-                    <textarea
-                        placeholder="E.g. Make it more sarcastic..."
-                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-gray-300 focus:outline-none focus:border-[#FF5722] h-20"
-                    />
-                </div>
             </div>
 
             {/* Center Panel: CANVAS */}
             <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
                 <div className="w-[390px] h-[692px] border border-white/10 bg-black rounded-3xl overflow-hidden shadow-2xl relative">
-                   {/* Dummy canvas representation since Remotion Player is already heavy */}
-                   <div className="absolute inset-0 bg-gray-800 flex items-center justify-center flex-col">
-                       <span className="text-4xl mb-4">▶️</span>
-                       <span className="text-gray-400 font-medium tracking-wide">Interactive Canvas Preview</span>
-                       <span className="text-xs text-gray-500 mt-2">Scale: {zoomPercent}%</span>
-                   </div>
-                   <div className="absolute bottom-10 left-10 right-10 text-center">
-                       <h1 className="text-white font-bold text-2xl shadow-black drop-shadow-lg">{hookText}</h1>
-                   </div>
+                    <Player
+                        component={getRemotionComponent(cardData.templateType)}
+                        inputProps={{
+                          brollVideoUrl: backgroundAssetUrl || cardData.brollVideoUrl,
+                          demoVideoUrl: foregroundVideoUrl,
+                          images: [backgroundAssetUrl || cardData.brollVideoUrl],
+                          subtitlesJson: cardData.subtitlesJson,
+                          hookText: hookText,
+                          bodyText: cardData.bodyText || ''
+                        }}
+                        durationInFrames={300}
+                        compositionWidth={1080}
+                        compositionHeight={1920}
+                        fps={30}
+                        style={{ width: '100%', height: '100%', transform: `scale(${zoomPercent / 100})`, position: 'absolute' }}
+                        autoPlay
+                        loop
+                    />
+
+                    {/* Interactive Drag Overlay for Cutout Repositioning */}
+                    <motion.div
+                        drag
+                        dragConstraints={{ left: -200, right: 200, top: -300, bottom: 300 }}
+                        dragElastic={0}
+                        dragMomentum={false}
+                        onDrag={(e, info) => {
+                            setPosX(info.point.x);
+                            setPosY(info.point.y);
+                        }}
+                        className="absolute inset-0 z-10 cursor-move border-2 border-dashed border-transparent hover:border-white/50 group"
+                        style={{ x: posX, y: posY }}
+                    >
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                            <div className="bg-black/50 text-white px-3 py-1 rounded backdrop-blur text-sm">Drag to reposition</div>
+                        </div>
+                    </motion.div>
                 </div>
 
-                <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+                <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20">
                     <button
                         onClick={() => {
-                            onSave({ hookText, mentionBusiness, zoomPercent });
+                            onSave({ hookText, mentionBusiness, zoomPercent, posX, posY, foregroundVideoUrl, backgroundAssetUrl });
                             onClose();
                         }}
                         className="bg-[#FF5722] hover:bg-[#EA580C] text-white px-12 py-4 rounded-full font-bold text-lg shadow-[0_0_20px_rgba(255,87,34,0.4)] transition"
@@ -136,11 +217,6 @@ export const QuickTweakDrawer: React.FC<{
 
             {/* Right Panel: INSPECTOR */}
             <div className="w-[300px] border-l border-white/10 bg-[#14151a] p-6 flex flex-col space-y-6">
-                <button className="w-full bg-white/5 hover:bg-white/10 border border-white/10 py-3 rounded-xl text-white font-medium flex items-center justify-center space-x-2">
-                    <span>⟲</span>
-                    <span>Play from Start</span>
-                </button>
-
                 <div className="border border-white/10 rounded-xl overflow-hidden">
                     <div className="bg-white/5 p-3 flex justify-between items-center cursor-pointer">
                         <span className="font-semibold text-white">🎥 Video Transform</span>
@@ -162,8 +238,12 @@ export const QuickTweakDrawer: React.FC<{
                             />
                         </div>
                         <button
-                            onClick={() => setZoomPercent(100)}
-                            className="w-full bg-white/5 hover:bg-white/10 py-2 rounded-lg text-xs font-semibold text-gray-300"
+                            onClick={() => {
+                                setZoomPercent(102);
+                                setPosX(0);
+                                setPosY(0);
+                            }}
+                            className="w-full bg-white/5 hover:bg-white/10 py-2 rounded-lg text-xs font-semibold text-gray-300 transition"
                         >
                             Reset Position
                         </button>

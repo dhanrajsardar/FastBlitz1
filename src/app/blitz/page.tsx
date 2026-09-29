@@ -77,8 +77,16 @@ function ClientPage() {
     if (nextIndex < allCards.length) {
       setActiveCardData(allCards[nextIndex]);
     }
-    if (nextIndex >= allCards.length - 2 && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
+
+    // Auto-replenish buffer check (if <= 3 remaining unviewed cards)
+    const remainingCards = allCards.length - nextIndex;
+    if (remainingCards <= 3) {
+       // Call the background generator endpoint
+       fetch('/api/blitz/generate', { method: 'POST' }).then(() => {
+           if (hasNextPage && !isFetchingNextPage) {
+               fetchNextPage();
+           }
+       });
     }
   };
 
@@ -95,13 +103,13 @@ function ClientPage() {
     advanceCard(card);
   };
 
-  const handleAction = async (action: 'SAVE_TO_LIBRARY' | 'SCHEDULE') => {
+  const handleAction = async (action: 'SAVE_TO_LIBRARY' | 'SCHEDULE', platforms?: string[], scheduledTime?: Date) => {
     if (!cardToApprove) return;
     try {
         await fetch(`/api/blitz/card/${cardToApprove.id}/action`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action })
+            body: JSON.stringify({ action, platforms, scheduledTime })
         });
         if (action === 'SCHEDULE') setQueueCount(prev => prev + 1);
     } catch (e) {
@@ -148,10 +156,13 @@ function ClientPage() {
       {showApprovalModal && (
         <ApprovalModal
           onSaveToLibrary={() => handleAction('SAVE_TO_LIBRARY')}
-          onSchedulePost={() => handleAction('SCHEDULE')}
+          onSchedulePost={(platforms, scheduledTime) => handleAction('SCHEDULE', platforms, scheduledTime)}
           onCancel={() => {
             setShowApprovalModal(false);
-            // Revert swipe by not advancing card
+            setCardToApprove(null);
+            // We revert the visual swipe since it was cancelled. The card remains active.
+            // In a real production app, we'd use Framer Motion's imperative animation to snap back.
+            // For now, we simply re-render it.
           }}
         />
       )}
