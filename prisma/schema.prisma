@@ -1,0 +1,115 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum TemplateArchetype {
+  WALL_OF_TEXT
+  HOOK_DEMO
+  TIKTOK_SLIDESHOW
+  GREEN_SCREEN_MEME
+  AI_UGC_INFLUENCER
+}
+
+enum CardStatus {
+  UNVIEWED
+  DISMISSED
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+enum SocialPlatform {
+  TIKTOK
+  INSTAGRAM
+  YOUTUBE
+  LINKEDIN
+}
+
+model User {
+  id               String       @id @default(cuid())
+  email            String       @unique
+  name             String?
+  avatarUrl        String?
+  creditsBalance   Int          @default(50)
+  createdAt        DateTime     @default(now())
+  workspaces       Workspace[]
+}
+
+model Workspace {
+  id             String          @id @default(cuid())
+  name           String
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandProfiles  BrandProfile[]
+  blitzCards     BlitzCard[]
+  socialAccounts SocialAccount[]
+  createdAt      DateTime        @default(now())
+}
+
+model BrandProfile {
+  id             String       @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  websiteUrl     String
+  companyName    String
+  tagline        String?
+  targetAudience String
+  brandVoice     String
+  keyBenefits    String[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  blitzCards     BlitzCard[]
+}
+
+model BlitzCard {
+  id              String            @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandProfileId  String
+  brandProfile    BrandProfile      @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+
+  templateType    TemplateArchetype
+  viralityScore   Int               @default(92)
+
+  // Dynamic Content & Script
+  hookText        String
+  bodyText        String
+  ctaText         String
+  fullScript      String
+
+  // Media Assets
+  voiceId         String?
+  voiceAudioUrl   String?
+  brollVideoUrl   String
+  avatarVideoUrl  String?
+  subtitlesJson   Json              // Word-level timestamps: [{ word, start, end }]
+  renderedMp4Url  String?
+  durationSeconds Int               @default(15)
+
+  // Blitz State & Scheduling
+  status          CardStatus        @default(UNVIEWED)
+  swipedAt        DateTime?
+  scheduledFor    DateTime?
+  publishedAt     DateTime?
+  targetPlatforms SocialPlatform[]  @default([TIKTOK, INSTAGRAM, YOUTUBE])
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model SocialAccount {
+  id           String         @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  platform     SocialPlatform
+  accountName  String
+  accessToken  String
+  refreshToken String?
+  tokenExpiry  DateTime?
+  createdAt    DateTime       @default(now())
+}
