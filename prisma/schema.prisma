@@ -1,15 +1,36 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
 }
 
-// Emulate enums as strings in SQLite (Prisma will map these natively for PostgreSQL but for dev.db sqlite it creates String types, which is fine for sandbox).
-// To enforce type-safety, we will just keep them as Enums but use SQLite provider.
-// Actually Prisma SQLite doesn't support enums natively. We'll use String type with default values.
+enum TemplateType {
+  GREEN_SCREEN
+  SLIDESHOW
+  WALL_OF_TEXT
+  HOOK_DEMO
+}
+
+enum CardStatus {
+  UNVIEWED
+  DISMISSED
+  LIBRARY_SAVED
+  SCHEDULED
+  RENDERING
+  RENDERED
+  PUBLISHED
+  FAILED
+}
+
+enum SocialPlatform {
+  TIKTOK
+  INSTAGRAM
+  YOUTUBE
+  LINKEDIN
+}
 
 model User {
   id               String       @id @default(cuid())
@@ -41,11 +62,8 @@ model BrandProfile {
   tagline         String?
   targetAudience  String
   brandVoice      String
-
-  // Storing arrays as JSON for SQLite compatibility
-  corePainPoints  String
-  keyBenefits     String
-
+  corePainPoints  String[]
+  keyBenefits     String[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   blitzCards      BlitzCard[]
@@ -60,7 +78,7 @@ model MemeTemplate {
   originalHookText    String
   originalVideoUrl    String
 
-  templateType        String          @default("GREEN_SCREEN") // GREEN_SCREEN, SLIDESHOW, WALL_OF_TEXT, HOOK_DEMO
+  templateType        TemplateType    @default(GREEN_SCREEN)
   foregroundCutoutUrl String
   defaultBrollUrl     String
   audioTrackUrl       String
@@ -79,14 +97,14 @@ model BlitzCard {
   memeTemplateId    String?
   memeTemplate      MemeTemplate?   @relation(fields: [memeTemplateId], references: [id])
 
-  templateType      String          @default("GREEN_SCREEN")
+  templateType      TemplateType    @default(GREEN_SCREEN)
   positioningAngle  String
   whyThisContent    String
 
   // Parody Script & Overlay Copy
   hookText          String
   mentionBusiness   Boolean         @default(true)
-  slidesContent     String?         // Stored as JSON string
+  slidesContent     Json?
 
   // Media Composition Manifest
   foregroundVideoUrl String
@@ -97,11 +115,11 @@ model BlitzCard {
   posY               Float          @default(0)
 
   // State Machine & Scheduling
-  status            String          @default("UNVIEWED") // UNVIEWED, DISMISSED, LIBRARY_SAVED, SCHEDULED, RENDERING, RENDERED, PUBLISHED, FAILED
+  status            CardStatus      @default(UNVIEWED)
   swipedAt          DateTime?
   scheduledFor      DateTime?
   publishedAt       DateTime?
-  targetPlatforms   String          @default("TIKTOK,INSTAGRAM,YOUTUBE") // CSV
+  targetPlatforms   SocialPlatform[] @default([TIKTOK, INSTAGRAM, YOUTUBE])
   renderedMp4Url    String?
   renderError       String?
 
@@ -113,11 +131,11 @@ model SocialAccount {
   id           String         @id @default(cuid())
   workspaceId  String
   workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  platform     String
+  platform     SocialPlatform
   accountName  String
   accessToken  String
   refreshToken String?
   tokenExpiry  DateTime?
-  externalId   String         @default("unknown")
+  externalId   String
   createdAt    DateTime       @default(now())
 }

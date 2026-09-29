@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TemplateType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -13,7 +13,7 @@ async function main() {
       originalViews: '18.1K',
       originalHookText: 'When your situationship texts you for the first time in months and you\'re trying to decide how much self respect you have left',
       originalVideoUrl: 'https://media.aftermark.ai/usefastlane/memes/brittany_original.mp4',
-      templateType: 'GREEN_SCREEN',
+      templateType: TemplateType.GREEN_SCREEN,
       foregroundCutoutUrl: 'https://media.aftermark.ai/usefastlane/memes/brittany_cutout_alpha.webm',
       defaultBrollUrl: 'https://media.aftermark.ai/usefastlane/broll/night_bridge_city.mp4',
       audioTrackUrl: 'https://media.aftermark.ai/usefastlane/audio/trending_sound_01.mp3',
@@ -31,7 +31,7 @@ async function main() {
       originalViews: '52.3K',
       originalHookText: 'Stop checking the same information in five different places',
       originalVideoUrl: 'https://media.aftermark.ai/usefastlane/memes/desk_slideshow_orig.mp4',
-      templateType: 'SLIDESHOW',
+      templateType: TemplateType.SLIDESHOW,
       foregroundCutoutUrl: '',
       defaultBrollUrl: 'https://media.aftermark.ai/usefastlane/broll/cozy_desk_lamp.jpg',
       audioTrackUrl: 'https://media.aftermark.ai/usefastlane/audio/lofi_study_beat.mp3',
@@ -49,7 +49,7 @@ async function main() {
       originalViews: '180K',
       originalHookText: 'Life was good until I had to deal with customer support',
       originalVideoUrl: 'https://media.aftermark.ai/usefastlane/memes/pedro_original.mp4',
-      templateType: 'GREEN_SCREEN',
+      templateType: TemplateType.GREEN_SCREEN,
       foregroundCutoutUrl: 'https://media.aftermark.ai/usefastlane/memes/pedro_cutout_alpha.webm',
       defaultBrollUrl: 'https://media.aftermark.ai/usefastlane/broll/sunset_highway.mp4',
       audioTrackUrl: 'https://media.aftermark.ai/usefastlane/audio/make_your_own_kind_of_music.mp3',

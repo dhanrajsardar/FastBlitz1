@@ -5,6 +5,7 @@ import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-mo
 import { Player } from '@remotion/player';
 import { WallOfTextComposition } from '../../remotion/WallOfTextComposition';
 import { HookDemoComposition } from '../../remotion/HookDemoComposition';
+import { SlideshowComposition } from '../../remotion/SlideshowComposition';
 
 interface CardData {
   id: string;
@@ -12,8 +13,19 @@ interface CardData {
   bodyText: string;
   subtitlesJson: string;
   brollVideoUrl: string;
+  backgroundAssetUrl: string;
+  foregroundVideoUrl: string;
   viralityScore: number;
   templateType: string;
+  positioningAngle: string;
+  whyThisContent: string;
+  memeTemplate?: {
+    creatorHandle: string;
+    originalLikes: string;
+    originalViews: string;
+    originalHookText: string;
+    originalVideoUrl: string;
+  };
 }
 
 export const BlitzCardStack: React.FC<{
@@ -67,7 +79,6 @@ export const BlitzCardStack: React.FC<{
     gainNode.connect(ctx.destination);
 
     if (direction === 1) {
-      // Right Swipe (Schedule) - pleasant double pop
       osc.type = 'sine';
       osc.frequency.setValueAtTime(600, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
@@ -76,7 +87,6 @@ export const BlitzCardStack: React.FC<{
       osc.start();
       osc.stop(ctx.currentTime + 0.2);
     } else {
-      // Left Swipe (Skip) - low whoosh
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(200, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.3);
@@ -100,125 +110,190 @@ export const BlitzCardStack: React.FC<{
     playSwipeSound(direction);
     const swipedCard = activeCard;
 
-    // Animate off screen
     x.set(direction * 500);
 
     setTimeout(() => {
       setActiveCardIndex(prev => prev + 1);
-      x.set(0); // Reset for next card
+      x.set(0);
       if (direction === 1) {
         onSwipeRight(swipedCard);
       } else {
         onSwipeLeft(swipedCard);
       }
-    }, 200); // Wait for exit animation
+    }, 200);
   };
 
   if (activeCardIndex >= cards.length) {
-    return <div className="text-white text-center py-20">No more cards. Buffering...</div>;
+    return <div className="text-white text-center py-20 w-full flex justify-center items-center h-[700px]">No more cards. Buffering...</div>;
+  }
+
+  const getRemotionComponent = (templateType: string) => {
+    if (templateType === 'SLIDESHOW') return SlideshowComposition;
+    if (templateType === 'HOOK_DEMO') return HookDemoComposition;
+    return WallOfTextComposition;
   }
 
   return (
-    <div className="relative w-[390px] h-[692px] mx-auto flex items-center justify-center perspective-[1000px]">
-      <AnimatePresence>
-        {cards.slice(activeCardIndex, activeCardIndex + 3).map((card, idx) => {
-          const isTop = idx === 0;
-          const scale = 1 - (idx * 0.05);
-          const yOffset = idx * 12;
-          const opacity = isTop ? 1 : 1 - (idx * 0.15);
+    <div className="flex flex-col items-center w-full max-w-5xl mx-auto mt-4">
 
-          return (
-            <motion.div
-              key={card.id}
-              className="absolute top-0 left-0 w-full h-full bg-[#1a1c23] border border-white/12 rounded-3xl overflow-hidden shadow-2xl origin-bottom"
-              style={{
-                x: isTop ? x : 0,
-                rotate: isTop ? rotate : 0,
-                scale,
-                y: yOffset,
-                zIndex: 10 - idx,
-                opacity
-              }}
-              drag={isTop ? "x" : false}
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.9}
-              onDragEnd={isTop ? handleDragEnd : undefined}
-            >
-              {/* Card Header Overlay */}
-              <div className="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
-                <div className="bg-white/10 backdrop-blur-md text-white text-xs font-semibold px-3 py-1 rounded-full">
-                  {card.templateType === 'HOOK_DEMO' ? 'Hook & Demo' : 'Wall of Text'}
-                </div>
-                <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-black text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-                  🔥 {card.viralityScore}% Match
-                </div>
-              </div>
+      {/* Strategic Tags Row */}
+      <div className="flex space-x-3 mb-6">
+        <div className="bg-white/10 backdrop-blur-md text-white text-sm font-semibold px-4 py-1.5 rounded-full border border-white/10">
+          {activeCard.templateType.replace('_', ' ')}
+        </div>
+        <div className="bg-[#FF5722]/20 text-[#FF5722] text-sm font-semibold px-4 py-1.5 rounded-full border border-[#FF5722]/30">
+          {activeCard.positioningAngle || 'Angle'}
+        </div>
+        <div className="group relative cursor-help">
+          <div className="bg-transparent text-white text-sm font-semibold px-4 py-1.5 rounded-full border border-[#FF5722] flex items-center space-x-2">
+            <span>🧠</span>
+            <span>Why This Content?</span>
+          </div>
+          <div className="absolute top-full mt-2 w-64 bg-[#1a1c23] border border-white/10 p-3 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none text-xs text-gray-300 leading-relaxed">
+            {activeCard.whyThisContent || 'This hooks the user by mentioning a relatable pain point.'}
+          </div>
+        </div>
+      </div>
 
-              {/* Remotion Player */}
-              <div className="w-full h-full pointer-events-none">
-                {isTop ? (
-                  <Player
-                    component={card.templateType === 'HOOK_DEMO' ? HookDemoComposition : WallOfTextComposition}
-                    inputProps={{
-                      brollVideoUrl: card.brollVideoUrl,
-                      demoVideoUrl: card.brollVideoUrl, // reusing broll as demo video for sandbox purposes
-                      subtitlesJson: card.subtitlesJson,
-                      hookText: card.hookText,
-                      bodyText: card.bodyText
-                    }}
-                    durationInFrames={300}
-                    compositionWidth={1080}
-                    compositionHeight={1920}
-                    fps={30}
-                    style={{ width: '100%', height: '100%' }}
-                    autoPlay
-                    loop
-                  />
-                ) : (
-                  <div className="w-full h-full bg-black/50" /> // Placeholder for cards underneath to save compute
-                )}
-              </div>
+      <div className="flex items-center justify-center space-x-12 perspective-[1000px]">
 
-              {/* Bottom Gradient Overlay */}
-              <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-20 pointer-events-none p-6 flex flex-col justify-end">
-                <h3 className="text-white font-bold text-xl mb-2 shadow-black drop-shadow-md">{card.hookText}</h3>
-                <div className="flex items-center space-x-2 text-xs text-white/80">
-                  <span>🎵 Trending Sound #12</span>
-                </div>
-              </div>
+        {/* Left Card: Remixed From (Static) */}
+        {activeCard.memeTemplate && (
+          <div className="relative w-[340px] h-[600px] bg-black border border-white/10 rounded-3xl overflow-hidden opacity-90 hidden md:block">
+            <div className="absolute top-4 left-4 z-10 flex items-center space-x-2">
+              <span className="bg-black/60 backdrop-blur-md text-white text-xs font-semibold px-3 py-1 rounded-full">
+                Remixed From
+              </span>
+              <span className="text-white/80 text-xs font-medium">{activeCard.memeTemplate.creatorHandle}</span>
+            </div>
 
-              {/* Drag Feedback Overlays */}
-              {isTop && (
-                <>
-                  <motion.div
-                    className="absolute inset-0 z-30 pointer-events-none"
-                    style={{
-                      backgroundColor: 'rgba(16, 185, 129, 0.4)',
-                      opacity: rightGlowOpacity
-                    }}
-                  >
-                    <div className="absolute top-1/4 left-8 transform -rotate-12 border-4 border-emerald-400 text-emerald-400 font-bold text-3xl px-4 py-2 rounded-xl bg-black/20 backdrop-blur-sm">
-                      SCHEDULED
+            <div className="absolute top-4 right-4 z-10 flex flex-col space-y-2 items-end">
+              <span className="bg-black/60 backdrop-blur-md text-white text-xs font-semibold px-2 py-1 rounded">
+                ❤️ {activeCard.memeTemplate.originalLikes}
+              </span>
+              <span className="bg-black/60 backdrop-blur-md text-white text-xs font-semibold px-2 py-1 rounded">
+                👁️ {activeCard.memeTemplate.originalViews}
+              </span>
+            </div>
+
+            {/* The original video (use a poster or video tag for mock) */}
+            <video
+              src={activeCard.memeTemplate.originalVideoUrl}
+              className="w-full h-full object-cover opacity-50"
+              autoPlay muted loop playsInline
+            />
+
+            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 to-transparent">
+              <p className="text-white font-medium text-sm italic shadow-black drop-shadow-md">
+                &quot;{activeCard.memeTemplate.originalHookText}&quot;
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Center Card: The Swipeable Remotion Canvas */}
+        <div className="relative w-[390px] h-[692px]">
+          <AnimatePresence>
+            {cards.slice(activeCardIndex, activeCardIndex + 3).map((card, idx) => {
+              const isTop = idx === 0;
+              const scale = 1 - (idx * 0.05);
+              const yOffset = idx * 12;
+              const opacity = isTop ? 1 : 1 - (idx * 0.15);
+
+              return (
+                <motion.div
+                  key={card.id}
+                  className="absolute top-0 left-0 w-full h-full bg-[#1a1c23] border border-white/12 rounded-3xl overflow-hidden shadow-2xl origin-bottom"
+                  style={{
+                    x: isTop ? x : 0,
+                    rotate: isTop ? rotate : 0,
+                    scale,
+                    y: yOffset,
+                    zIndex: 10 - idx,
+                    opacity
+                  }}
+                  drag={isTop ? "x" : false}
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.9}
+                  onDragEnd={isTop ? handleDragEnd : undefined}
+                >
+                  {/* Card Header Overlay */}
+                  <div className="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
+                    <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-black text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                      🔥 99% Match
                     </div>
-                  </motion.div>
+                  </div>
 
-                  <motion.div
-                    className="absolute inset-0 z-30 pointer-events-none"
-                    style={{
-                      backgroundColor: 'rgba(244, 63, 94, 0.4)',
-                      opacity: leftGlowOpacity
-                    }}
-                  >
-                    <div className="absolute top-1/4 right-8 transform rotate-12 border-4 border-rose-400 text-rose-400 font-bold text-3xl px-4 py-2 rounded-xl bg-black/20 backdrop-blur-sm">
-                      SKIPPED
+                  {/* Remotion Player */}
+                  <div className="w-full h-full pointer-events-none">
+                    {isTop ? (
+                      <Player
+                        component={getRemotionComponent(card.templateType)}
+                        inputProps={{
+                          brollVideoUrl: card.backgroundAssetUrl || card.brollVideoUrl,
+                          demoVideoUrl: card.backgroundAssetUrl || card.brollVideoUrl,
+                          images: [card.backgroundAssetUrl || card.brollVideoUrl], // Mocking images for slideshow
+                          subtitlesJson: card.subtitlesJson,
+                          hookText: card.hookText,
+                          bodyText: card.bodyText || ''
+                        }}
+                        durationInFrames={300}
+                        compositionWidth={1080}
+                        compositionHeight={1920}
+                        fps={30}
+                        style={{ width: '100%', height: '100%' }}
+                        autoPlay
+                        loop
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-black/50" />
+                    )}
+                  </div>
+
+                  {/* Bottom Gradient Overlay */}
+                  {card.templateType !== 'SLIDESHOW' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-20 pointer-events-none p-6 flex flex-col justify-end">
+                      <h3 className="text-white font-bold text-xl mb-2 shadow-black drop-shadow-md">{card.hookText}</h3>
+                      <div className="flex items-center space-x-2 text-xs text-white/80">
+                        <span>🎵 Trending Sound</span>
+                      </div>
                     </div>
-                  </motion.div>
-                </>
-              )}
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
+                  )}
+
+                  {/* Drag Feedback Overlays */}
+                  {isTop && (
+                    <>
+                      <motion.div
+                        className="absolute inset-0 z-30 pointer-events-none"
+                        style={{
+                          backgroundColor: 'rgba(16, 185, 129, 0.4)',
+                          opacity: rightGlowOpacity
+                        }}
+                      >
+                        <div className="absolute top-1/4 left-8 transform -rotate-12 border-4 border-emerald-400 text-emerald-400 font-bold text-3xl px-4 py-2 rounded-xl bg-black/20 backdrop-blur-sm">
+                          APPROVE
+                        </div>
+                      </motion.div>
+
+                      <motion.div
+                        className="absolute inset-0 z-30 pointer-events-none"
+                        style={{
+                          backgroundColor: 'rgba(244, 63, 94, 0.4)',
+                          opacity: leftGlowOpacity
+                        }}
+                      >
+                        <div className="absolute top-1/4 right-8 transform rotate-12 border-4 border-rose-400 text-rose-400 font-bold text-3xl px-4 py-2 rounded-xl bg-black/20 backdrop-blur-sm">
+                          SKIPPED
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      </div>
     </div>
   );
 };
