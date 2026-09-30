@@ -1,0 +1,623 @@
+// prisma/schema.prisma (SQLite compatible version for local dev)
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["jsonProtocol"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS (stored as strings for SQLite)
+// ============================================
+model PlatformEnum {
+  id    String @id @default(cuid())
+  value String @unique // TIKTOK, INSTAGRAM, YOUTUBE, LINKEDIN, REDDIT
+}
+
+model PostStatusEnum {
+  id    String @id @default(cuid())
+  value String @unique // DRAFT, SCHEDULED, PROCESSING, PUBLISHED, FAILED, CANCELLED
+}
+
+model ContentStatusEnum {
+  id    String @id @default(cuid())
+  value String @unique // GENERATING, READY_FOR_REVIEW, APPROVED, REJECTED, ARCHIVED
+}
+
+model UserRoleEnum {
+  id    String @id @default(cuid())
+  value String @unique // OWNER, ADMIN, MEMBER, VIEWER
+}
+
+model SubscriptionPlanEnum {
+  id    String @id @default(cuid())
+  value String @unique // FREE, STARTER, PRO, ENTERPRISE
+}
+
+model MediaTypeEnum {
+  id    String @id @default(cuid())
+  value String @unique // VIDEO, IMAGE, SLIDESHOW, MEME, CAROUSEL
+}
+
+model JobStatusEnum {
+  id    String @id @default(cuid())
+  value String @unique // PENDING, QUEUED, PROCESSING, COMPLETED, FAILED, CANCELLED
+}
+
+model CampaignStatusEnum {
+  id    String @id @default(cuid())
+  value String @unique // PENDING, SCRAPING, ANALYZING, GENERATING, READY_FOR_REVIEW, COMPLETED, FAILED
+}
+
+model CreditTransactionTypeEnum {
+  id    String @id @default(cuid())
+  value String @unique // PURCHASE, USAGE_GENERATION, USAGE_CHARACTER, USAGE_TRENDING, REFUND, BONUS, EXPIRED, SWIPE_FREE, SWIPE_PAID
+}
+
+model SubscriptionStatusEnum {
+  id    String @id @default(cuid())
+  value String @unique // ACTIVE, PAST_DUE, CANCELED, INCOMPLETE, TRIALING, PAUSED
+}
+
+// ============================================
+// CORE MODELS
+// ============================================
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  emailVerified     DateTime?
+  passwordHash      String?
+  name              String?
+  avatarUrl         String?
+  role              String    @default("MEMBER") // references UserRoleEnum
+  plan              String    @default("FREE")   // references SubscriptionPlanEnum
+  credits           Int       @default(10)
+  swipesUsedToday   Int       @default(0)
+  lastSwipeReset    DateTime  @default(now())
+  stripeCustomerId  String?   @unique
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastLoginAt       DateTime?
+
+  workspaces        WorkspaceMember[]
+  ownedWorkspaces   Workspace[]           @relation("WorkspaceOwner")
+  socialAccounts    SocialAccount[]       @relation("UserSocialAccounts")
+  campaigns         Campaign[]            @relation("CampaignUser")
+  videoCandidates   VideoCandidate[]      @relation("VideoCandidateUser")
+  scheduledPosts    ScheduledPost[]       @relation("ScheduledPostUser")
+  creditTransactions CreditTransaction[]  @relation("UserCreditTransactions")
+  oauthAccounts     OAuthAccount[]
+  invitedWorkspaces WorkspaceMember[]     @relation("WorkspaceInvites")
+
+  @@index([email])
+  @@index([stripeCustomerId])
+  @@index([plan])
+}
+
+model Workspace {
+  id                    String    @id @default(cuid())
+  name                  String
+  slug                  String    @unique
+  description           String?
+  logoUrl               String?
+  plan                  String    @default("FREE")   // references SubscriptionPlanEnum
+  apiKey                String    @unique @default(cuid())
+  stripeSubscriptionId  String?   @unique
+  stripePriceId         String?
+  subscriptionEndsAt    DateTime?
+  maxTeamMembers        Int       @default(5)
+  maxMonthlyPosts       Int       @default(100)
+  maxAiCredits          Int       @default(1000)
+  dailySwipeLimit       Int       @default(10)
+  monthlyCredits        Int       @default(100)
+  settings              String?   // JSON string
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  ownerId               String
+  owner                 User                  @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members               WorkspaceMember[]
+  socialAccounts        SocialAccount[]       @relation("WorkspaceSocialAccounts")
+  campaigns             Campaign[]
+  contentItems          ContentItem[]
+  trendingVideos        TrendingVideo[]
+  aiCharacters          AICharacter[]
+  scheduledPosts        ScheduledPost[]
+  subscriptions         Subscription[]
+  publishedPosts        PublishedPost[]       @relation("WorkspacePublishedPosts")
+  analytics             PostAnalytics[]       @relation("WorkspaceAnalytics")
+  creditTransactions    CreditTransaction[]   @relation("WorkspaceCreditTransactions")
+  videoCandidates       VideoCandidate[]      @relation("WorkspaceVideoCandidates")
+
+  @@index([slug])
+  @@index([ownerId])
+  @@index([plan])
+  @@index([stripeSubscriptionId])
+}
+
+model WorkspaceMember {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  userId       String
+  role         String    @default("MEMBER") // references UserRoleEnum
+  joinedAt     DateTime  @default(now())
+  invitedById  String?
+  invitedBy    User?     @relation("WorkspaceInvites", fields: [invitedById], references: [id])
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([role])
+}
+
+// ============================================
+// SOCIAL INTEGRATION
+// ============================================
+model SocialAccount {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  platform          String    // references PlatformEnum
+  platformAccountId String
+  username          String?
+  displayName       String?
+  profileImageUrl   String?
+  accessToken       String    // Encrypted at rest
+  refreshToken      String?   // Encrypted at rest
+  tokenExpiresAt    DateTime?
+  tokenType         String?
+  scope             String?
+  metadata          String?   // JSON string
+  isActive          Boolean   @default(true)
+  lastSyncedAt      DateTime?
+  errorCount        Int       @default(0)
+  lastError         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace         Workspace @relation("WorkspaceSocialAccounts", fields: [workspaceId], references: [id], onDelete: Cascade)
+  scheduledPosts    ScheduledPost[]
+  publishedPosts    PublishedPost[]
+  analytics         PostAnalytics[]
+  user              User      @relation("UserSocialAccounts", fields: [workspaceId], references: [id])
+
+  @@unique([workspaceId, platform, platformAccountId])
+  @@index([workspaceId])
+  @@index([platform])
+  @@index([isActive])
+  @@index([tokenExpiresAt])
+}
+
+model OAuthAccount {
+  id            String       @id @default(cuid())
+  userId        String
+  provider      String
+  providerId    String
+  accessToken   String?
+  refreshToken  String?
+  expiresAt     DateTime?
+  scope         String?
+  idToken       String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId])
+}
+
+// ============================================
+// CAMPAIGNS & GENERATION
+// ============================================
+model Campaign {
+  id                      String    @id @default(cuid())
+  workspaceId             String
+  userId                  String
+  websiteUrl              String
+  niche                   String?
+  brandName               String?
+  brandDescription        String?
+  brandVoice              String?
+  targetAudience          String?
+  keyMessages             String    // JSON string array
+  extractedData           String?   // JSON string
+  status                  String    @default("PENDING") // references CampaignStatusEnum
+  errorMessage            String?
+  totalVideosGenerated    Int       @default(0)
+  totalVideosApproved     Int       @default(0)
+  totalCreditsUsed        Int       @default(0)
+  startedAt               DateTime?
+  completedAt             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  workspace               Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user                    User           @relation("CampaignUser", fields: [userId], references: [id], onDelete: Cascade)
+  videoJobs               VideoJob[]
+  videoCandidates         VideoCandidate[]
+  contentItems            ContentItem[]
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([niche])
+}
+
+model VideoJob {
+  id            String    @id @default(cuid())
+  campaignId    String
+  platform      String    // references PlatformEnum
+  templateId    String?
+  templateName  String?
+  parameters    String    // JSON string
+  status        String    @default("PENDING") // references JobStatusEnum
+  progress      Int       @default(0)
+  currentStep   String?
+  errorMessage  String?
+  result        String?   // JSON string
+  falRequestId  String?   // fal.ai request ID for tracking
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  campaign      Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  videoCandidates VideoCandidate[]
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([platform])
+  @@index([falRequestId])
+}
+
+model VideoCandidate {
+  id                  String    @id @default(cuid())
+  campaignId          String
+  jobId               String?
+  userId              String
+  workspaceId         String
+  platform            String    // references PlatformEnum
+  mediaType           String    @default("VIDEO") // references MediaTypeEnum
+  title               String?
+  description         String?
+  script              String?
+  hook                String?
+  videoUrl            String
+  thumbnailUrl        String?
+  duration            Int?
+  aspectRatio         String?   @default("9:16")
+  fileSize            BigInt?
+  mimeType            String?
+  templateId          String?
+  templateName        String?
+  aiModelUsed         String?
+  generationParams    String?   // JSON string
+  tags                String    // JSON string array
+  niche               String?
+  status              String    @default("READY_FOR_REVIEW") // references ContentStatusEnum
+  reviewedAt          DateTime?
+  reviewedById        String?
+  rejectionReason     String?
+  scheduledPostId     String?   @unique
+  creditsUsed         Int       @default(5)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  campaign            Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  job                 VideoJob?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  user                User          @relation("VideoCandidateUser", fields: [userId], references: [id], onDelete: Cascade)
+  workspace           Workspace     @relation("WorkspaceVideoCandidates", fields: [workspaceId], references: [id], onDelete: Cascade)
+  scheduledPost       ScheduledPost?
+
+  @@index([campaignId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([status])
+  @@index([platform])
+  @@index([niche])
+  @@index([createdAt])
+  @@index([templateId])
+}
+
+// ============================================
+// CONTENT LIBRARY
+// ============================================
+model ContentItem {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  campaignId      String?
+  title           String
+  description     String?
+  mediaType       String    @default("VIDEO") // references MediaTypeEnum
+  mediaUrl        String
+  thumbnailUrl    String?
+  duration        Int?
+  aspectRatio     String?   @default("9:16")
+  fileSize        BigInt?
+  mimeType        String?
+  tags            String    // JSON string array
+  niche           String?
+  isTemplate      Boolean   @default(false)
+  isTrending      Boolean   @default(false)
+  sourceType      String?
+  sourceId        String?
+  usageCount      Int       @default(0)
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace       Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign        Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  scheduledPosts  ScheduledPost[]
+
+  @@index([workspaceId])
+  @@index([campaignId])
+  @@index([mediaType])
+  @@index([niche])
+  @@index([isTemplate])
+  @@index([isTrending])
+  @@index([sourceType])
+  @@index([createdAt])
+}
+
+model TrendingVideo {
+  id              String    @id @default(cuid())
+  workspaceId     String?
+  niche           String
+  subNiche        String?
+  videoUrl        String
+  thumbnailUrl    String?
+  duration        Int
+  aspectRatio     String    @default("9:16")
+  fileSize        BigInt?
+  mimeType        String?
+  title           String?
+  description     String?
+  tags            String    // JSON string array
+  originalCreator String?
+  originalUrl     String?
+  sourceViews     BigInt    @default(0)
+  sourceLikes     BigInt    @default(0)
+  sourceShares    BigInt    @default(0)
+  sourcePlatform  String?   // references PlatformEnum
+  trendingScore   Float     @default(0)
+  trendingAt      DateTime?
+  usageCount      Int       @default(0)
+  lastUsedAt      DateTime?
+  isActive        Boolean   @default(true)
+  addedAt         DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace       Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([niche])
+  @@index([subNiche])
+  @@index([trendingScore])
+  @@index([isActive])
+  @@index([addedAt])
+  @@index([sourcePlatform])
+}
+
+// ============================================
+// SCHEDULING & PUBLISHING
+// ============================================
+model ScheduledPost {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  userId            String
+  contentItemId     String?
+  videoCandidateId  String?   @unique
+  socialAccountId   String
+  platform          String    // references PlatformEnum
+  caption           String?
+  hashtags          String    // JSON string array
+  mentions          String    // JSON string array
+  location          String?
+  altText           String?
+  status            String    @default("DRAFT") // references PostStatusEnum
+  scheduledFor      DateTime
+  publishedAt       DateTime?
+  timezone          String    @default("UTC")
+  platformPostId    String?
+  platformUrl       String?
+  platformError     String?
+  retryCount        Int       @default(0)
+  maxRetries        Int       @default(3)
+  metadata          String?   // JSON string
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace         Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user              User         @relation("ScheduledPostUser", fields: [userId], references: [id], onDelete: Cascade)
+  contentItem       ContentItem? @relation(fields: [contentItemId], references: [id], onDelete: SetNull)
+  videoCandidate    VideoCandidate? @relation(fields: [videoCandidateId], references: [id], onDelete: SetNull)
+  socialAccount     SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  publishedPost     PublishedPost?
+  analytics         PostAnalytics[] @relation("ScheduledPostAnalytics")
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([socialAccountId])
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([platform])
+  @@index([platformPostId])
+  @@index([contentItemId])
+  @@index([videoCandidateId])
+}
+
+model PublishedPost {
+  id                String    @id @default(cuid())
+  scheduledPostId   String    @unique
+  workspaceId       String
+  socialAccountId   String
+  platform          String    // references PlatformEnum
+  platformPostId    String
+  platformUrl       String
+  caption           String?
+  hashtags          String    // JSON string array
+  mediaUrls         String    // JSON string array
+  initialViews      Int       @default(0)
+  initialLikes      Int       @default(0)
+  publishedAt       DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  scheduledPost     ScheduledPost @relation(fields: [scheduledPostId], references: [id], onDelete: Cascade)
+  workspace         Workspace     @relation("WorkspacePublishedPosts", fields: [workspaceId], references: [id], onDelete: Cascade)
+  socialAccount     SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  analytics         PostAnalytics[]
+
+  @@index([workspaceId])
+  @@index([socialAccountId])
+  @@index([platform])
+  @@index([platformPostId])
+  @@index([publishedAt])
+}
+
+// ============================================
+// ANALYTICS
+// ============================================
+model PostAnalytics {
+  id                String    @id @default(cuid())
+  publishedPostId   String
+  workspaceId       String
+  socialAccountId   String
+  platform          String    // references PlatformEnum
+  date              DateTime
+  granularity       String    @default("daily")
+  views             Int       @default(0)
+  likes             Int       @default(0)
+  comments          Int       @default(0)
+  shares            Int       @default(0)
+  saves             Int       @default(0)
+  clicks            Int       @default(0)
+  reach             Int       @default(0)
+  impressions       Int       @default(0)
+  watchTime         Int?      @default(0)
+  averageWatchTime  Int?      @default(0)
+  completionRate    Float?    @default(0)
+  rawData           String?   // JSON string
+  fetchedAt         DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  publishedPost     PublishedPost @relation(fields: [publishedPostId], references: [id], onDelete: Cascade)
+  workspace         Workspace     @relation("WorkspaceAnalytics", fields: [workspaceId], references: [id], onDelete: Cascade)
+  socialAccount     SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  scheduledPost     ScheduledPost? @relation("ScheduledPostAnalytics", fields: [publishedPostId], references: [id])
+
+  @@unique([publishedPostId, date, granularity])
+  @@index([workspaceId])
+  @@index([socialAccountId])
+  @@index([platform])
+  @@index([date])
+  @@index([granularity])
+}
+
+// ============================================
+// AI CHARACTERS (Optional - scaffolded)
+// ============================================
+model AICharacter {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  name            String
+  description     String?
+  appearanceParams String   // JSON string
+  voiceParams     String?   // JSON string
+  avatarUrl       String?
+  previewVideoUrl String?
+  modelProvider   String?
+  modelId         String?
+  isDefault       Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  usageCount      Int       @default(0)
+  creditsCost     Int       @default(50)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([isActive])
+  @@index([isDefault])
+}
+
+// ============================================
+// BILLING & CREDITS
+// ============================================
+model Subscription {
+  id                      String    @id @default(cuid())
+  workspaceId             String    @unique
+  stripeSubscriptionId    String    @unique
+  stripeCustomerId        String
+  stripePriceId           String
+  stripeCurrentPeriodEnd  DateTime
+  status                  String    @default("ACTIVE") // references SubscriptionStatusEnum
+  plan                    String    @default("FREE")   // references SubscriptionPlanEnum
+  creditsIncluded         Int       @default(0)
+  swipeLimit              Int       @default(10)
+  cancelAtPeriodEnd       Boolean   @default(false)
+  canceledAt              DateTime?
+  trialEndsAt             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  workspace               Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([stripeSubscriptionId])
+  @@index([status])
+  @@index([plan])
+}
+
+model CreditTransaction {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  type        String    // references CreditTransactionTypeEnum
+  amount      Int
+  balance     Int
+  description String?
+  metadata    String?   // JSON string
+  createdAt   DateTime  @default(now())
+
+  user        User                 @relation("UserCreditTransactions", fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace            @relation("WorkspaceCreditTransactions", fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+model AuditLog {
+  id          String    @id @default(cuid())
+  workspaceId String?
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  oldData     String?   // JSON string
+  newData     String?   // JSON string
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

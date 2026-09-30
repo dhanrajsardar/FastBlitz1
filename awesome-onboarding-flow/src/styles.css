@@ -1,0 +1,200 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * FastBlitz design system.
+ * Dark-first. All colors are oklch tokens; never hardcode colors in components.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 3px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 12px);
+  --radius-3xl: calc(var(--radius) + 20px);
+  --radius-4xl: calc(var(--radius) + 28px);
+
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-violet: var(--violet);
+  --color-ember: var(--ember);
+  --color-success: var(--success);
+  --color-ring-offset-background: var(--background);
+}
+
+:root {
+  --radius: 1rem;
+
+  --background: oklch(0.16 0.024 264);
+  --foreground: oklch(0.97 0.006 258);
+
+  --surface: oklch(0.21 0.028 264 / 70%);
+  --surface-raised: oklch(0.25 0.032 264 / 78%);
+
+  --card: oklch(0.21 0.028 264);
+  --card-foreground: oklch(0.97 0.006 258);
+  --popover: oklch(0.21 0.028 264);
+  --popover-foreground: oklch(0.97 0.006 258);
+
+  --primary: oklch(0.66 0.19 258);
+  --primary-foreground: oklch(0.14 0.02 264);
+  --violet: oklch(0.6 0.22 292);
+  --ember: oklch(0.76 0.16 62);
+  --success: oklch(0.74 0.15 158);
+
+  --secondary: oklch(0.28 0.03 264);
+  --secondary-foreground: oklch(0.95 0.008 258);
+  --muted: oklch(0.26 0.026 264);
+  --muted-foreground: oklch(0.68 0.022 262);
+  --accent: oklch(0.3 0.045 264);
+  --accent-foreground: oklch(0.97 0.006 258);
+  --destructive: oklch(0.63 0.2 24);
+  --destructive-foreground: oklch(0.98 0.004 258);
+
+  --border: oklch(1 0 0 / 9%);
+  --border-strong: oklch(1 0 0 / 18%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.66 0.19 258 / 55%);
+
+  --shadow-glow: 0 0 0 1px oklch(0.66 0.19 258 / 35%), 0 12px 40px -12px oklch(0.66 0.19 258 / 45%);
+  --shadow-panel: 0 40px 120px -48px oklch(0.05 0.02 264 / 90%);
+  --gradient-accent: linear-gradient(100deg, var(--primary), var(--violet));
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: oklch(0.66 0.19 258 / 35%);
+  }
+}
+
+/* Panel: hairline bordered translucent surface */
+@utility panel {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(20px) saturate(1.2);
+  box-shadow: var(--shadow-panel);
+}
+
+/* Fine film grain overlay */
+@utility grain {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.22;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+@utility accent-gradient {
+  background-image: var(--gradient-accent);
+}
+
+@utility text-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--foreground) 10%,
+    oklch(0.82 0.09 262) 55%,
+    oklch(0.8 0.12 292) 100%
+  );
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(-6%, -4%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, 5%, 0) scale(1.15);
+  }
+  100% {
+    transform: translate3d(-6%, -4%, 0) scale(1);
+  }
+}
+
+@keyframes sheen {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes rail-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@utility animate-aurora {
+  animation: aurora-drift 26s ease-in-out infinite;
+}
+
+@utility animate-sheen {
+  animation: sheen 2.6s ease-in-out infinite;
+}
+
+@utility animate-rail-pulse {
+  animation: rail-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
