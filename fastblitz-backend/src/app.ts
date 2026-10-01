@@ -38,6 +38,9 @@ export async function buildApp(): Promise<any> {
   if (env.NODE_ENV !== 'test') {
     const { startCampaignWorkers } = await import('./modules/campaign/workers');
     await startCampaignWorkers();
+
+    const { startPublishingWorkers } = await import('./modules/publishing/workers');
+    await startPublishingWorkers();
   }
 
   return app;

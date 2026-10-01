@@ -8,6 +8,18 @@ export async function registerRoutes(app: any) {
   const { registerRoutes: registerCampaignRoutes } = await import('../modules/campaign/routes');
   await registerCampaignRoutes(app);
 
+  const { registerRoutes: registerSocialRoutes } = await import('../modules/social/routes');
+  await registerSocialRoutes(app);
+
+  const { registerRoutes: registerContentRoutes } = await import('../modules/content/routes');
+  await registerContentRoutes(app);
+
+  const { registerRoutes: registerSchedulingRoutes } = await import('../modules/scheduling/routes');
+  await registerSchedulingRoutes(app);
+
+  const { registerRoutes: registerAnalyticsRoutes } = await import('../modules/analytics/routes');
+  await registerAnalyticsRoutes(app);
+
   const { registerWebhookRoutes } = await import('./webhooks');
   await registerWebhookRoutes(app);
 
