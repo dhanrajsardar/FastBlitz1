@@ -32,7 +32,7 @@ export async function processPublishingWorker() {
 
       const publisher = getPublisher(post.platform);
 
-      const accessToken = decryptToken(post.socialAccount.accessToken);
+      const accessToken = await decryptToken(post.socialAccount.accessToken);
       const videoUrl = post.videoCandidate?.videoUrl || post.contentItem?.mediaUrl || '';
 
       if (!videoUrl) throw new Error('No video URL to publish');
@@ -83,7 +83,12 @@ export async function processPublishingWorker() {
       // A full implementation would inspect error, queue retry if < maxRetries, etc.
       throw error; // Mark BullMQ job as failed
     }
-  }, { concurrency: 5, limiter: { max: 10, duration: 1000 } }); // Respect basic API limits
+  }, {
+    concurrency: 5,
+    // Stricter rate limiting to respect global social constraints (e.g. max 5 posts per minute per worker node)
+    // For per-account limits, a Redis-backed rate limiter (like express-rate-limit logic) inside the worker logic is recommended.
+    limiter: { max: 5, duration: 60000 }
+  });
 }
 
 export async function startPublishingWorkers() {

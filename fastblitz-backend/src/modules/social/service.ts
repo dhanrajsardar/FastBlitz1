@@ -25,6 +25,9 @@ export async function handleOAuthCallback(workspaceId: string, platform: string,
   const mockRefreshToken = `mock_refresh_token_${platform}_${Date.now()}`;
   const mockAccountId = `acc_${platform}_${Date.now()}`;
 
+  const encryptedAccess = await encryptToken(mockAccessToken);
+  const encryptedRefresh = await encryptToken(mockRefreshToken);
+
   const account = await prisma.socialAccount.upsert({
     where: {
       workspaceId_platform_platformAccountId: {
@@ -34,8 +37,8 @@ export async function handleOAuthCallback(workspaceId: string, platform: string,
       }
     },
     update: {
-      accessToken: encryptToken(mockAccessToken),
-      refreshToken: encryptToken(mockRefreshToken),
+      accessToken: encryptedAccess,
+      refreshToken: encryptedRefresh,
       tokenExpiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 60), // 60 days
       isActive: true
     },
@@ -44,8 +47,8 @@ export async function handleOAuthCallback(workspaceId: string, platform: string,
       platform,
       platformAccountId: mockAccountId,
       username: `Mock User ${platform}`,
-      accessToken: encryptToken(mockAccessToken),
-      refreshToken: encryptToken(mockRefreshToken),
+      accessToken: encryptedAccess,
+      refreshToken: encryptedRefresh,
       tokenExpiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 60),
       isActive: true
     }

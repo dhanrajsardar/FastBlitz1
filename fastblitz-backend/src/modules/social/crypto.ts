@@ -23,37 +23,61 @@ function getKey(): Buffer {
   throw new Error('ENCRYPTION_KEY must be exactly 32 bytes (either raw string or base64 decoded).');
 }
 
-export function encryptToken(text: string): string {
-  const iv = crypto.randomBytes(16);
-  const key = getKey();
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-
-  const authTag = cipher.getAuthTag().toString('hex');
-
-  // Format: iv:authTag:encryptedData
-  return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+/**
+ * SecretManager Interface abstracts how tokens are stored and retrieved.
+ * For enterprise scalability, this can be swapped with AWS KMS or HashiCorp Vault.
+ */
+export interface SecretManager {
+  encrypt(text: string): Promise<string>;
+  decrypt(encryptedText: string): Promise<string>;
 }
 
-export function decryptToken(encryptedText: string): string {
-  const parts = encryptedText.split(':');
-  if (parts.length !== 3) {
-    // Maybe it wasn't encrypted (legacy data)? Just return it or handle error
-    return encryptedText;
+export class LocalAESSecretManager implements SecretManager {
+  async encrypt(text: string): Promise<string> {
+    const iv = crypto.randomBytes(16);
+    const key = getKey();
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+
+    const authTag = cipher.getAuthTag().toString('hex');
+
+    // Format: iv:authTag:encryptedData
+    return `${iv.toString('hex')}:${authTag}:${encrypted}`;
   }
 
-  const [ivHex, authTagHex, dataHex] = parts;
-  const iv = Buffer.from(ivHex, 'hex');
-  const authTag = Buffer.from(authTagHex, 'hex');
-  const key = getKey();
+  async decrypt(encryptedText: string): Promise<string> {
+    const parts = encryptedText.split(':');
+    if (parts.length !== 3) {
+      // Maybe it wasn't encrypted (legacy data)? Just return it or handle error
+      return encryptedText;
+    }
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
+    const [ivHex, authTagHex, dataHex] = parts;
+    const iv = Buffer.from(ivHex, 'hex');
+    const authTag = Buffer.from(authTagHex, 'hex');
+    const key = getKey();
 
-  let decrypted = decipher.update(dataHex, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
 
-  return decrypted;
+    let decrypted = decipher.update(dataHex, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+
+    return decrypted;
+  }
+}
+
+// Global instance to use throughout the app.
+// Can easily be replaced by VaultSecretManager in the future.
+export const secretManager = new LocalAESSecretManager();
+
+// Backwards compatibility wrappers
+export async function encryptToken(text: string): Promise<string> {
+  return secretManager.encrypt(text);
+}
+
+export async function decryptToken(encryptedText: string): Promise<string> {
+  return secretManager.decrypt(encryptedText);
 }

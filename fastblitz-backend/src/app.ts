@@ -32,16 +32,7 @@ export async function buildApp(): Promise<any> {
   await registerRoutes(app);
 
   // Setup Socket.IO
-  setupSocketIO(app);
-
-  // Start background workers
-  if (env.NODE_ENV !== 'test') {
-    const { startCampaignWorkers } = await import('./modules/campaign/workers');
-    await startCampaignWorkers();
-
-    const { startPublishingWorkers } = await import('./modules/publishing/workers');
-    await startPublishingWorkers();
-  }
+  await setupSocketIO(app);
 
   return app;
 }

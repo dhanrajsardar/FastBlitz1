@@ -37,7 +37,22 @@ let workers: Worker[] = [];
 
 export async function createWorker<T>(name: string, processor: (job: Job<T>) => Promise<any>, options?: { concurrency?: number; limiter?: { max: number; duration: number } }): Promise<Worker<T>> {
   const redis = await (await import('../../config')).getRedisClient();
-  const worker = new Worker<T>(name, processor, { connection: redis, concurrency: options?.concurrency ?? 5, limiter: options?.limiter, maxStalledCount: 2, stalledInterval: 30000 });
+
+  // Rate limiting natively through BullMQ v5+ uses a slightly different signature (it uses RateLimiter logic or Group Rate Limiters).
+  // However, basic limiter at worker initialization operates like this to respect API constraints.
+  const workerOptions: any = {
+    connection: redis,
+    concurrency: options?.concurrency ?? 5,
+    maxStalledCount: 2,
+    stalledInterval: 30000
+  };
+
+  if (options?.limiter) {
+    workerOptions.limiter = options.limiter;
+  }
+
+  const worker = new Worker<T>(name, processor, workerOptions);
+
   worker.on('failed', (job: any, err: any) => console.error(`Job failed: ${job?.name} (${job?.id})`, err));
   worker.on('completed', (job: any) => console.log(`Job completed: ${job.name} (${job.id})`));
   workers.push(worker);

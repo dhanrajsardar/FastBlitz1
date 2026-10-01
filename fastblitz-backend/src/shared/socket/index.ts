@@ -3,12 +3,21 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import { FastifyInstance } from 'fastify';
 import { verifyAccessToken } from '../../modules/auth/service';
 import { eventEmitter } from '../../shared/events';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { getRedisClient } from '../../config';
 
-export function setupSocketIO(app: FastifyInstance) {
+export async function setupSocketIO(app: FastifyInstance) {
+  const pubClient = await getRedisClient();
+  const subClient = pubClient.duplicate();
+
   const io = new SocketIOServer(app.server, { 
     cors: { origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }, 
-    transports: ['websocket', 'polling'] 
+    transports: ['websocket', 'polling']
   });
+
+  // Attach adapter by setting it on the Server instance
+  // Since v4 of socket.io, it is attached via io.adapter()
+  (io as any).adapter(createAdapter(pubClient, subClient));
 
   io.use(async (socket: Socket, next: (err?: Error) => void) => {
     const token = socket.handshake.auth.token || socket.handshake.query.token;
